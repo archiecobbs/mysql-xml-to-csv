@@ -1,0 +1,71 @@
+.\"  -*- nroff -*-
+.\"
+.\" mysql-xml-to-csv - Convers MySQL XML output to CSV
+.\"
+.\" Copyright (C) 2021 Archie L. Cobbs. All rights reserved.
+.\"
+.\" Licensed under the Apache License, Version 2.0 (the "License");
+.\" you may not use this file except in compliance with the License.
+.\" You may obtain a copy of the License at
+.\"
+.\"     http://www.apache.org/licenses/LICENSE-2.0
+.\"
+.\" Unless required by applicable law or agreed to in writing, software
+.\" distributed under the License is distributed on an "AS IS" BASIS,
+.\" WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+.\" See the License for the specific language governing permissions and
+.\" limitations under the License.
+.\"
+.Dd September 2, 2021
+.Dt MYSQL-XML-TO-CSV 1
+.Os
+.Sh NAME
+.Nm mysql-xml-to-csv
+.Nd Convert MySQL XML output to CSV
+.Sh SYNOPSIS
+.Nm mysql-xml-to-csv
+.Op Fl N
+.Op Ar input.xml
+.Bk -words
+.Ek
+.Sh DESCRIPTION
+.Nm
+converts MySQL XML query results (i.e., produced using the
+.Xr mysql 1
+command when given the
+.Fl \-xml
+flag) into a CSV file.
+.Pp
+The XML input is read from
+.Pa input.xml ,
+if specified, otherwise standard input.
+The CSV output is written to standard output.
+.Pp
+The first row of the CSV output contains column names unless the
+.Fl N
+flag is given.
+.Pp
+Any null values are converted into the empty string.
+.Pp
+The character encoding used for the CVS output is UTF-8.
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl N
+Do not output the column names in the first row of the output file.
+.El
+.Sh RETURN VALUES
+.Nm
+exits with one of the following values:
+.Bl -tag -width Ds
+.It 0
+Input was successfully processed.
+.It 1
+An error occurred.
+.El
+.Sh SEE ALSO
+.Rs
+.%T "mysql-xml-to-csv: Convert MySQL XML output to CSV"
+.%O https://github.com/archiecobbs/mysql-xml-to-csv
+.Re
+.Sh AUTHOR
+.An Archie L. Cobbs Aq archie.cobbs@gmail.com
