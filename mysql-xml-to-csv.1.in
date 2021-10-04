@@ -25,6 +25,7 @@
 .Sh SYNOPSIS
 .Nm mysql-xml-to-csv
 .Op Fl N
+.Op Fl s Ar separator
 .Op Ar input.xml
 .Bk -words
 .Ek
@@ -52,6 +53,8 @@ The character encoding used for the CVS output is UTF-8.
 .Bl -tag -width Ds
 .It Fl N
 Do not output the column names in the first row of the output file.
+.It Fl s Ar separator
+Specify an alternate column separator (default is comma).
 .El
 .Sh RETURN VALUES
 .Nm

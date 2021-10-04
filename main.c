@@ -28,7 +28,8 @@
     </resultset>
 */
 
-#define BUFFER_SIZE     (1 << 16)
+#define BUFFER_SIZE                 (1 << 16)
+#define DEFAULT_COLUMN_SEPARATOR    ","
 
 // Version string
 extern const char *const mysql_xml_to_csv_version;
@@ -38,6 +39,9 @@ static XML_Char **column_names;
 static size_t num_column_names;
 static XML_Char **first_row_values;
 static size_t num_first_row_values;
+
+// Column separator
+static const char *column_separator = DEFAULT_COLUMN_SEPARATOR;
 
 // This accumulates one column's value
 static XML_Char *elem_text;                     // note: not nul-terminated
@@ -72,7 +76,7 @@ main(int argc, char **argv)
     int i;
 
     // Parse command line
-    while ((i = getopt(argc, argv, "hNv")) != -1) {
+    while ((i = getopt(argc, argv, "hNs:v")) != -1) {
         switch (i) {
         case 'N':
             want_column_names = 0;
@@ -80,6 +84,11 @@ main(int argc, char **argv)
         case 'h':
             usage();
             exit(0);
+       case 's':
+            if (*optarg == '\0' || *optarg == '"')
+                errx(1, "invalid separator: %s", optarg);
+            column_separator = optarg;
+            break;
         case 'v':
             fprintf(stderr, "mysql-xml-to-csv %s\n", mysql_xml_to_csv_version);
             fprintf(stderr, "Copyright %s Archie L. Cobbs. All rights reserved.\n", COPYRIGHT);
@@ -153,7 +162,7 @@ handle_elem_start(void *data, const XML_Char *name, const XML_Char **attr)
             add_string(&column_names, &num_column_names, attr[1], xml_strlen(attr[1]));
         } else {
             if (!first_column)
-                putchar(',');
+                fputs(column_separator, stdout);
             putchar('"');
         }
         reading_value = 1;
@@ -202,7 +211,7 @@ output_csv_row(XML_Char **values, size_t num_columns)
 
     for (i = 0; i < num_columns; i++) {
         if (i > 0)
-            putchar(',');
+            fputs(column_separator, stdout);
         putchar('"');
         output_csv_text(values[i], xml_strlen(values[i]));
         putchar('"');
@@ -273,7 +282,8 @@ usage(void)
 {
     fprintf(stderr, "Usage: mysql-xml-to-csv [options] [file.xml]\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -N\tDo not output column names as the first row\n");
-    fprintf(stderr, "  -h\tShow this usage info\n");
-    fprintf(stderr, "  -v\tShow program version\n");
+    fprintf(stderr, "  -N\t\tDo not output column names as the first row\n");
+    fprintf(stderr, "  -h\t\tShow this usage info\n");
+    fprintf(stderr, "  -s char\tSpecify column separator (default \"%s\")\n", DEFAULT_COLUMN_SEPARATOR);
+    fprintf(stderr, "  -v\t\tShow program version\n");
 }
