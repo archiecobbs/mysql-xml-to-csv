@@ -1,6 +1,6 @@
 .\"  -*- nroff -*-
 .\"
-.\" mysql-xml-to-csv - Convers MySQL XML output to CSV
+.\" mysql-xml-to-csv - Convert MySQL XML output to CSV
 .\"
 .\" Copyright (C) 2021 Archie L. Cobbs. All rights reserved.
 .\"
