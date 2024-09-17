@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-AC_INIT([mysql-xml-to-csv Convert MySQL XML output to CSV], [1.0.0], [https://github.com/archiecobbs/mysql-xml-to-csv/], [mysql-xml-to-csv])
+AC_INIT([mysql-xml-to-csv Convert MySQL XML output to CSV], [1.0.1], [https://github.com/archiecobbs/mysql-xml-to-csv/], [mysql-xml-to-csv])
 AC_CONFIG_AUX_DIR(scripts)
 AM_INIT_AUTOMAKE
 dnl AM_MAINTAINER_MODE

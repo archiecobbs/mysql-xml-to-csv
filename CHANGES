@@ -1,4 +1,4 @@
-Version Next
+Version 1.0.1 Released September 17, 2024
 
     - Added "-s" flag to specify alternate column separator
     - Added "-E" flag to specify output if there are zero rows
