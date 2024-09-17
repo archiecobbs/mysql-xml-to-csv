@@ -24,7 +24,7 @@ docdir=			$(datadir)/doc/packages/$(PACKAGE)
 
 doc_DATA=		CHANGES LICENSE README.md INSTALL AUTHORS
 
-EXTRA_DIST=		CHANGES README.md
+EXTRA_DIST=		CHANGES LICENSE README.md
 
 mysql_xml_to_csv_SOURCES=	main.c \
 				gitrev.c
