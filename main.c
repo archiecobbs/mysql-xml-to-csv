@@ -51,6 +51,8 @@ static size_t elem_text_len;
 static int first_column;                        // the current column is the first column
 static int reading_value;                       // we are reading the current column's value
 static int num_rows_seen;                       // the number of rows we have seen so far
+static int value_is_null;                       // the current column value is null
+static const char *null_value;                  // string to output for null values (default empty)
 
 // Expat callback functions
 static void handle_elem_start(void *data, const XML_Char *el, const XML_Char **attrs);
@@ -72,14 +74,21 @@ main(int argc, char **argv)
 {
     char buf[BUFFER_SIZE];
     int want_column_names = 1;                  // output column names as the first CSV row
+    const char *empty_output = NULL;            // what to print if there are zero rows
     XML_Parser p;
     FILE *fp;
     size_t r;
     int i;
 
     // Parse command line
-    while ((i = getopt(argc, argv, "hNs:v")) != -1) {
+    while ((i = getopt(argc, argv, "E:hn:Ns:v")) != -1) {
         switch (i) {
+        case 'E':
+            empty_output = optarg;
+            break;
+        case 'n':
+            null_value = optarg;
+            break;
         case 'N':
             want_column_names = 0;
             break;
@@ -142,6 +151,10 @@ main(int argc, char **argv)
             break;
     }
 
+    // Any rows encountered?
+    if (num_rows_seen == 0 && empty_output != NULL)
+        printf("%s\n", empty_output);
+
     // Clean up
     XML_ParserFree(p);
     fclose(fp);
@@ -154,6 +167,7 @@ static void
 handle_elem_start(void *data, const XML_Char *name, const XML_Char **attrs)
 {
     const XML_Char *field_name;
+    const XML_Char *nil_status;
 
     if (strcmp(name, "row") == 0) {
         first_column = 1;
@@ -168,6 +182,7 @@ handle_elem_start(void *data, const XML_Char *name, const XML_Char **attrs)
                 fputs(column_separator, stdout);
             putchar('"');
         }
+        value_is_null = (nil_status = find_attribute(attrs, "xsi:nil")) != NULL && strcmp(nil_status, "true") == 0;
         reading_value = 1;
     }
 }
@@ -193,6 +208,12 @@ handle_elem_text(void *data, const XML_Char *s, int len)
 {
     if (!reading_value)
         return;
+    if (value_is_null) {
+//       if (len > 0)
+//           errx(1, "row %d: non-empty value for field with xsi:nil=\"true\"", num_rows_seen);
+        if (null_value != NULL)
+            return;
+    }
     if (column_names != NULL)
         add_chars(&elem_text, &elem_text_len, s, len);
     else
@@ -211,6 +232,10 @@ handle_elem_end(void *data, const XML_Char *name)
         } else
             putchar('\n');
     } else if (strcmp(name, "field") == 0) {
+        if (value_is_null && null_value != NULL) {      // pretend "null_value" was the text content
+            value_is_null = 0;
+            handle_elem_text(data, null_value, strlen(null_value));
+        }
         if (column_names != NULL) {
             add_string(&first_row_values, &num_first_row_values, elem_text, elem_text_len);
             free(elem_text);
@@ -301,8 +326,10 @@ usage(void)
 {
     fprintf(stderr, "Usage: mysql-xml-to-csv [options] [file.xml]\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -N\t\tDo not output column names as the first row\n");
-    fprintf(stderr, "  -h\t\tShow this usage info\n");
+    fprintf(stderr, "  -E line\tOutput \"line\" if result has zero rows (default output nothing)\n");
+    fprintf(stderr, "  -n value\tOutput \"value\" for NULL values (default empty string)\n");
+    fprintf(stderr, "  -N\t\tDo not output column names as the first CSV row\n");
     fprintf(stderr, "  -s char\tSpecify column separator (default \"%s\")\n", DEFAULT_COLUMN_SEPARATOR);
+    fprintf(stderr, "  -h\t\tShow this usage info\n");
     fprintf(stderr, "  -v\t\tShow program version\n");
 }

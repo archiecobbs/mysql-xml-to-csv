@@ -1,6 +1,8 @@
 Version Next
 
     - Added "-s" flag to specify alternate column separator
+    - Added "-E" flag to specify output if there are zero rows
+    - Added "-n" flag to specify alternate value for NULL columns
 
 Version 1.0.0 Released September 2, 2021
 

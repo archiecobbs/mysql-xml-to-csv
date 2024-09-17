@@ -16,7 +16,7 @@
 .\" See the License for the specific language governing permissions and
 .\" limitations under the License.
 .\"
-.Dd September 2, 2021
+.Dd September 16, 2024
 .Dt MYSQL-XML-TO-CSV 1
 .Os
 .Sh NAME
@@ -24,6 +24,8 @@
 .Nd Convert MySQL XML output to CSV
 .Sh SYNOPSIS
 .Nm mysql-xml-to-csv
+.Op Fl E Ar line
+.Op Fl n Ar value
 .Op Fl N
 .Op Fl s Ar separator
 .Op Ar input.xml
@@ -46,14 +48,33 @@ The first row of the CSV output contains column names unless the
 .Fl N
 flag is given.
 .Pp
-Any null values are converted into the empty string.
+If the query result set contains zero rows, then by default nothing is output;
+this behavior can be altered using the
+.Fl E
+flag.
+.Pp
+By default NULL column values are converted into the empty string;
+this behavior can be altered using the
+.Fl n
+flag.
 .Pp
 The character encoding used for the CVS output is UTF-8.
 .Sh OPTIONS
 .Bl -tag -width Ds
+.It Fl E
+If the result set contains zero rows, output
+.Ar line
+followed by a newline character instead of outputting nothing.
+No validation of
+.Ar line
+is performed.
+.It Fl n
+Output
+.Ar value
+instead of the empty string for NULL values.
 .It Fl N
 Do not output the column names in the first row of the output file.
-.It Fl s Ar separator
+.It Fl s
 Specify an alternate column separator (default is comma).
 .El
 .Sh RETURN VALUES
