@@ -48,15 +48,17 @@ static XML_Char *elem_text;                     // note: not nul-terminated
 static size_t elem_text_len;
 
 // Flags
-static int first_column;
-static int reading_value;
+static int first_column;                        // the current column is the first column
+static int reading_value;                       // we are reading the current column's value
+static int num_rows_seen;                       // the number of rows we have seen so far
 
 // Expat callback functions
-static void handle_elem_start(void *data, const XML_Char *el, const XML_Char **attr);
-static void handle_elem_text(void *userData, const XML_Char *s, int len);
+static void handle_elem_start(void *data, const XML_Char *el, const XML_Char **attrs);
+static void handle_elem_text(void *data, const XML_Char *s, int len);
 static void handle_elem_end(void *data, const XML_Char *el);
 
 // Helper functions
+static const XML_Char *find_attribute(const XML_Char **const attrs, const char *name);
 static void output_csv_row(XML_Char **values, size_t num);
 static void output_csv_text(const char *s, size_t len);
 static void add_string(XML_Char ***arrayp, size_t *lengthp, const XML_Char *string, size_t len);
@@ -69,7 +71,7 @@ int
 main(int argc, char **argv)
 {
     char buf[BUFFER_SIZE];
-    int want_column_names = 1;
+    int want_column_names = 1;                  // output column names as the first CSV row
     XML_Parser p;
     FILE *fp;
     size_t r;
@@ -149,17 +151,18 @@ main(int argc, char **argv)
 }
 
 static void
-handle_elem_start(void *data, const XML_Char *name, const XML_Char **attr)
+handle_elem_start(void *data, const XML_Char *name, const XML_Char **attrs)
 {
-    if (strcmp(name, "row") == 0)
+    const XML_Char *field_name;
+
+    if (strcmp(name, "row") == 0) {
         first_column = 1;
-    else if (strcmp(name, "field") == 0) {
+        num_rows_seen++;
+    } else if (strcmp(name, "field") == 0) {
         if (column_names != NULL) {
-            while (*attr != NULL && strcmp(*attr, "name") != 0)
-                attr += 2;
-            if (*attr == NULL)
-                errx(1, "\"field\" element is missing \"name\" attribute");
-            add_string(&column_names, &num_column_names, attr[1], xml_strlen(attr[1]));
+            if ((field_name = find_attribute(attrs, "name")) == NULL)
+                errx(1, "row %d: \"%s\" element is missing \"%s\" attribute", num_rows_seen, "field", "name");
+            add_string(&column_names, &num_column_names, field_name, xml_strlen(field_name));
         } else {
             if (!first_column)
                 fputs(column_separator, stdout);
@@ -169,8 +172,24 @@ handle_elem_start(void *data, const XML_Char *name, const XML_Char **attr)
     }
 }
 
+static const XML_Char *
+find_attribute(const XML_Char **attrs, const char *target)
+{
+    const XML_Char *name;
+    const XML_Char *value;
+
+    while (*attrs != NULL) {
+        name = attrs[0];
+        value = attrs[1];
+        if (strcmp(name, target) == 0)
+            return value;
+        attrs += 2;
+    }
+    return NULL;
+}
+
 static void
-handle_elem_text(void *userData, const XML_Char *s, int len)
+handle_elem_text(void *data, const XML_Char *s, int len)
 {
     if (!reading_value)
         return;
