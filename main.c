@@ -83,7 +83,6 @@ static void usage(void);
 int
 main(int argc, char **argv)
 {
-    char buf[BUFFER_SIZE];
     int want_column_names = 1;                  // output column names as the first CSV row
     const char *empty_output = NULL;            // what to print if there are zero rows
     XML_Parser p;
@@ -156,9 +155,14 @@ main(int argc, char **argv)
 
     // Process file
     for (offset = 0; 1; offset += r) {
+        char *buf;
+
+        // Get buffer
+        if ((buf = XML_GetBuffer(p, BUFFER_SIZE)) == NULL)
+            errx(1, "XML_GetBuffer(%d) failed", BUFFER_SIZE);
 
         // Read more data
-        if ((r = fread(buf, 1, sizeof(buf), fp)) == 0 && ferror(fp))
+        if ((r = fread(buf, 1, BUFFER_SIZE, fp)) == 0 && ferror(fp))
             errx(1, "error reading input");
 
         // Identify any invalid control characters and replace them with placeholders
@@ -187,12 +191,14 @@ main(int argc, char **argv)
         }
 
         // Process it
-        if (XML_Parse(p, buf, r, r == 0) == XML_STATUS_ERROR) {
+        if (XML_ParseBuffer(p, r, r == 0) == XML_STATUS_ERROR) {
             errx(1, "line %u: col %u: %s",
               (unsigned int)XML_GetCurrentLineNumber(p),
               (unsigned int)XML_GetCurrentColumnNumber(p),
               XML_ErrorString(XML_GetErrorCode(p)));
         }
+
+        // EOF?
         if (r == 0)
             break;
     }
