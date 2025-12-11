@@ -50,7 +50,7 @@ fi
 
 # Check for required header files
 AC_HEADER_STDC
-AC_CHECK_HEADERS(ctype.h errno.h stdio.h stdlib.h string.h unistd.h sys/stat.h sys/types.h, [],
+AC_CHECK_HEADERS(assert.h ctype.h errno.h stdio.h stdlib.h string.h unistd.h sys/stat.h sys/types.h, [],
         [AC_MSG_ERROR([required header file '$ac_header' missing])])
 
 # Check for required libraries
@@ -62,6 +62,10 @@ AC_ARG_ENABLE(Werror,
     AC_HELP_STRING([--enable-Werror],
         [enable compilation with -Werror flag (default NO)]),
     [test x"$enableval" = "xyes" && CFLAGS="${CFLAGS} -Werror"])
+AC_ARG_ENABLE(assertions,
+    AS_HELP_STRING([--enable-assertions],[enable debugging sanity checks (default NO)]),
+    [test x"$enableval" = "xyes" || AC_DEFINE(NDEBUG, 1, [disable assertions])],
+    [AC_DEFINE(NDEBUG, 1, [disable assertions])])
 
 # Generated files
 AC_CONFIG_FILES(Makefile)
