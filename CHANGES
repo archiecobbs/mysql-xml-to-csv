@@ -1,3 +1,8 @@
+Version 1.0.3 Released December 11, 2025
+
+    - Minor performance improvements
+    - Fix small memory leak
+
 Version 1.0.2 Released December 10, 2025
 
     - Allow invalid control characters in XML to flow through
