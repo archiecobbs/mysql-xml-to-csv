@@ -54,6 +54,16 @@ static int num_rows_seen;                       // the number of rows we have se
 static int value_is_null;                       // the current column value is null
 static const char *null_value;                  // string to output for null values (default empty)
 
+// This stuff is used to allow invalid control characters that Expat would otherwise barf on
+#define INVALID_CONTROL_PLACEHOLDER             '@'
+typedef struct {
+    XML_Char    control;                        // the invalid control character that was replaced
+    XML_Index   offset;                         // the invalid control character's byte offset in the input
+} invalid_control_t;
+static invalid_control_t *invalid_controls;     // invalid control characters identified in the current input
+static size_t invalid_controls_len;
+static size_t invalid_controls_alloc;
+
 // Expat callback functions
 static void handle_elem_start(void *data, const XML_Char *el, const XML_Char **attrs);
 static void handle_elem_text(void *data, const XML_Char *s, int len);
@@ -67,6 +77,7 @@ static void add_string(XML_Char ***arrayp, size_t *lengthp, const XML_Char *stri
 static void add_chars(XML_Char **strp, size_t *lenp, const XML_Char *string, size_t nchars);
 static size_t xml_strlen(const XML_Char *string);
 static void free_strings(XML_Char ***arrayp, size_t *lengthp);
+static int is_invalid_control_char(int ch);
 static void usage(void);
 
 int
@@ -76,6 +87,7 @@ main(int argc, char **argv)
     int want_column_names = 1;                  // output column names as the first CSV row
     const char *empty_output = NULL;            // what to print if there are zero rows
     XML_Parser p;
+    size_t offset;
     FILE *fp;
     size_t r;
     int i;
@@ -138,13 +150,43 @@ main(int argc, char **argv)
     // Initialize parser
     if ((p = XML_ParserCreate(NULL)) == NULL)
         errx(1, "can't initialize parser");
+    XML_UseParserAsHandlerArg(p);
     XML_SetElementHandler(p, handle_elem_start, handle_elem_end);
     XML_SetCharacterDataHandler(p, handle_elem_text);
 
     // Process file
-    while (1) {
+    for (offset = 0; 1; offset += r) {
+
+        // Read more data
         if ((r = fread(buf, 1, sizeof(buf), fp)) == 0 && ferror(fp))
             errx(1, "error reading input");
+
+        // Identify any invalid control characters and replace them with placeholders
+        for (i = 0; i < r; i++) {
+            const int character = buf[i] & 0xff;
+
+            if (is_invalid_control_char(character)) {
+                invalid_control_t *invalid_control;
+
+                // Extend our array, if needed
+                if (invalid_controls_len == invalid_controls_alloc) {
+                    invalid_controls_alloc = (invalid_controls_alloc * 2) + 13;
+                    if ((invalid_controls = realloc(invalid_controls,
+                      invalid_controls_alloc * sizeof(*invalid_controls))) == NULL)
+                        err(1, "malloc");
+                }
+
+                // Add new entry
+                invalid_control = &invalid_controls[invalid_controls_len++];
+                invalid_control->control = character;
+                invalid_control->offset = offset + i;
+
+                // Replace the invalid character with a legal character as placeholder
+                buf[i] = INVALID_CONTROL_PLACEHOLDER;
+            }
+        }
+
+        // Process it
         if (XML_Parse(p, buf, r, r == 0) == XML_STATUS_ERROR) {
             errx(1, "line %u: col %u: %s",
               (unsigned int)XML_GetCurrentLineNumber(p),
@@ -160,6 +202,7 @@ main(int argc, char **argv)
         printf("%s\n", empty_output);
 
     // Clean up
+    free(invalid_controls);
     XML_ParserFree(p);
     fclose(fp);
 
@@ -218,6 +261,59 @@ handle_elem_text(void *data, const XML_Char *s, int len)
         if (null_value != NULL)
             return;
     }
+
+    /*
+    {
+        int i;
+        fprintf(stderr, "handle_elem_text:\n");
+        fprintf(stderr, "  s=");
+        for (i = 0; i < len; i++)
+          fprintf(stderr, "%02x ", (int)(s[i] & 0xff));
+        fprintf(stderr, "\n");
+        fprintf(stderr, "  invalid_controls_len=%d\n", (int)invalid_controls_len);
+        fprintf(stderr, "  invalid_controls_alloc=%d\n", (int)invalid_controls_alloc);
+        fprintf(stderr, "  invalid_controls=");
+        for (i = 0; i < invalid_controls_len; i++) {
+            invalid_control_t *const invalid_control = &invalid_controls[i];
+            fprintf(stderr, "%02x@%d ", (int)invalid_control->control & 0xff, (int)invalid_control->offset);
+        }
+        fprintf(stderr, "\n");
+    }
+    */
+
+    // Un-replace invalid control characters, if any
+    if (invalid_controls_len > 0) {
+        const XML_Parser p = data;
+        const XML_Index offset = XML_GetCurrentByteIndex(p);
+        XML_Char *s2;
+        int i;
+        int j;
+
+        // Copy data so we can modify it back
+        if ((s2 = malloc(len * sizeof(*s))) == NULL)
+            err(1, "malloc");
+        memcpy(s2, s, len * sizeof(*s));
+        s = s2;
+
+        // Replace placeholders with their original invalid control characters
+        for (i = 0; i < len; i++) {
+            const XML_Char ch = s[i];
+            for (j = 0; j < invalid_controls_len; ) {
+                invalid_control_t *const invalid_control = &invalid_controls[j];
+
+                if (invalid_control->offset == offset + i) {
+//                    fprintf(stderr, "    replace: %02x@%d (was %02x)\n",
+//                      (int)invalid_control->control & 0xff, (int)invalid_control->offset, (int)(ch & 0xff));
+                    assert(ch == INVALID_CONTROL_PLACEHOLDER);
+                    s2[i] = invalid_control->control;
+                    memcpy(invalid_control, invalid_control + 1, (--invalid_controls_len - j) * sizeof(*invalid_control));
+                } else
+                    j++;
+            }
+        }
+    }
+
+    // Proceed
     if (column_names != NULL)
         add_chars(&elem_text, &elem_text_len, s, len);
     else
@@ -314,6 +410,21 @@ xml_strlen(const XML_Char *string)
     while (string[len] != (XML_Char)0)
         len++;
     return len;
+}
+
+// Determine if the given character is an invalid control character (i.e., not supported by XML 1.0)
+// Ref: https://www.w3.org/TR/xml/#charsets
+static int
+is_invalid_control_char(int ch)
+{
+    switch (ch) {
+    case '\t':
+    case '\n':
+    case '\r':
+        return 0;
+    default:
+        return ch < ' ';
+    }
 }
 
 static void
