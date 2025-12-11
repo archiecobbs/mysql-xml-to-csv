@@ -60,7 +60,7 @@ typedef struct {
     XML_Char    control;                        // the invalid control character that was replaced
     XML_Index   offset;                         // the invalid control character's byte offset in the input
 } invalid_control_t;
-static invalid_control_t *invalid_controls;     // invalid control characters identified in the current input
+static invalid_control_t *invalid_controls;     // invalid control characters in the current input (sorted by offset)
 static size_t invalid_controls_len;
 static size_t invalid_controls_alloc;
 
@@ -259,6 +259,11 @@ find_attribute(const XML_Char **attrs, const char *target)
 static void
 handle_elem_text(void *data, const XML_Char *s, int len)
 {
+    const XML_Parser p = data;
+    const XML_Index offset = XML_GetCurrentByteIndex(p);
+    XML_Char *copy = NULL;
+    int i;
+
     if (!reading_value)
         return;
     if (value_is_null) {
@@ -268,54 +273,23 @@ handle_elem_text(void *data, const XML_Char *s, int len)
             return;
     }
 
-    /*
-    {
-        int i;
-        fprintf(stderr, "handle_elem_text:\n");
-        fprintf(stderr, "  s=");
-        for (i = 0; i < len; i++)
-          fprintf(stderr, "%02x ", (int)(s[i] & 0xff));
-        fprintf(stderr, "\n");
-        fprintf(stderr, "  invalid_controls_len=%d\n", (int)invalid_controls_len);
-        fprintf(stderr, "  invalid_controls_alloc=%d\n", (int)invalid_controls_alloc);
-        fprintf(stderr, "  invalid_controls=");
-        for (i = 0; i < invalid_controls_len; i++) {
-            invalid_control_t *const invalid_control = &invalid_controls[i];
-            fprintf(stderr, "%02x@%d ", (int)invalid_control->control & 0xff, (int)invalid_control->offset);
-        }
-        fprintf(stderr, "\n");
-    }
-    */
+    // Replace placeholders with their original invalid control characters.
+    // Everything goes in order, so only the first in the array can possibly match.
+    for (i = 0; i < len && invalid_controls_len > 0; i++) {
+        if (invalid_controls->offset == offset + i) {
 
-    // Un-replace invalid control characters, if any
-    if (invalid_controls_len > 0) {
-        const XML_Parser p = data;
-        const XML_Index offset = XML_GetCurrentByteIndex(p);
-        XML_Char *s2;
-        int i;
-        int j;
-
-        // Copy data so we can modify it back
-        if ((s2 = malloc(len * sizeof(*s))) == NULL)
-            err(1, "malloc");
-        memcpy(s2, s, len * sizeof(*s));
-        s = s2;
-
-        // Replace placeholders with their original invalid control characters
-        for (i = 0; i < len; i++) {
-            const XML_Char ch = s[i];
-            for (j = 0; j < invalid_controls_len; ) {
-                invalid_control_t *const invalid_control = &invalid_controls[j];
-
-                if (invalid_control->offset == offset + i) {
-//                    fprintf(stderr, "    replace: %02x@%d (was %02x)\n",
-//                      (int)invalid_control->control & 0xff, (int)invalid_control->offset, (int)(ch & 0xff));
-                    assert(ch == INVALID_CONTROL_PLACEHOLDER);
-                    s2[i] = invalid_control->control;
-                    memcpy(invalid_control, invalid_control + 1, (--invalid_controls_len - j) * sizeof(*invalid_control));
-                } else
-                    j++;
+            // Copy buffer to make it writeable (first time only)
+            if (copy == NULL) {
+                if ((copy = malloc(len * sizeof(*s))) == NULL)
+                    err(1, "malloc");
+                memcpy(copy, s, len * sizeof(*s));
+                s = copy;
             }
+
+            // Replace placeholder with original invalid control character and discard array entry
+            assert(copy[i] == INVALID_CONTROL_PLACEHOLDER);
+            copy[i] = invalid_controls->control;
+            memcpy(invalid_controls, invalid_controls + 1, --invalid_controls_len * sizeof(*invalid_controls));
         }
     }
 
@@ -324,6 +298,10 @@ handle_elem_text(void *data, const XML_Char *s, int len)
         add_chars(&elem_text, &elem_text_len, s, len);
     else
         output_csv_text(s, len);
+
+    // Free buffer copy
+    if (copy != NULL)
+        free(copy);
 }
 
 static void
