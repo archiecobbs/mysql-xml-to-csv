@@ -145,8 +145,12 @@ main(int argc, char **argv)
     while (1) {
         if ((r = fread(buf, 1, sizeof(buf), fp)) == 0 && ferror(fp))
             errx(1, "error reading input");
-        if (XML_Parse(p, buf, r, r == 0) == XML_STATUS_ERROR)
-            errx(1, "line %u: %s", (unsigned int)XML_GetCurrentLineNumber(p), XML_ErrorString(XML_GetErrorCode(p)));
+        if (XML_Parse(p, buf, r, r == 0) == XML_STATUS_ERROR) {
+            errx(1, "line %u: col %u: %s",
+              (unsigned int)XML_GetCurrentLineNumber(p),
+              (unsigned int)XML_GetCurrentColumnNumber(p),
+              XML_ErrorString(XML_GetErrorCode(p)));
+        }
         if (r == 0)
             break;
     }
